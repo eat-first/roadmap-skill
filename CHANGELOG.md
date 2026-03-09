@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.11] - 2026-03-09
+
+### Fixed
+- **MCP Prompts**: Added non-intrusive task hints to `open-web-ui` and `quick-capture` prompts
+- **Port Display**: Fixed NaN display when port parameter is not provided in `open-web-ui` prompt
+- **Prompt Wording**: Removed command-like phrasing that could be misidentified as injection attempts
+
+
 ## [0.2.10] - 2026-02-27
 
 ### Added

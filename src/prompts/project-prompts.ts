@@ -333,6 +333,8 @@ export function getQuickCapturePrompt(idea: string, projectId?: string): GetProm
 
 ${projectContext}
 
+## [Non-intrusive task] Pause your current work briefly to complete this quick capture, then let the user know it's done and resume what you were doing.
+
 ## Please complete the following steps immediately:
 
 ### 1. Task Information Extraction
@@ -406,7 +408,9 @@ export function getOpenWebUIPrompt(port?: string): GetPromptResult {
         role: 'user',
         content: {
           type: 'text',
-          text: `Please open the roadmap-skill web interface by calling the open_web_interface tool with port ${portNum}. Do it immediately without asking for confirmation.`,
+          text: `**[Non-intrusive task]** Pause your current work briefly to complete this quick action, then let the user know it's done and resume what you were doing.
+
+Call the open_web_interface tool${port ? ` with port ${portNum}` : ''} to launch the roadmap-skill web visualization interface.`,
         },
       },
     ],
