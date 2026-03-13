@@ -39,7 +39,7 @@ describe('Web Server API', () => {
     const projectData: ProjectData = {
       version: 1,
       project: { id: projectId, name: 'Test', description: '', projectType: 'kanban', status: 'active', startDate: '2026-01-01', targetDate: '2026-12-31', createdAt: now, updatedAt: now },
-      milestones: [], tasks: [], tags: [],
+      milestones: [], tasks: [], tags: [], dependencyViews: [],
     };
     await ensureDir(tempDir);
     await writeJsonFile(path.join(tempDir, `${projectId}.json`), projectData);
@@ -222,6 +222,112 @@ describe('Web Server API', () => {
       expect(res.status).toBe(200);
       const data = await res.json() as any;
       expect(data.success).toBe(true);
+    });
+  });
+
+  describe('Dependency View API', () => {
+    it('should create, connect, analyze, and delete dependency views', async () => {
+      const createTaskA = await fetch(api('/api/tasks'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, title: 'Task A', description: '', priority: 'medium', tags: [] }),
+      });
+      const createTaskB = await fetch(api('/api/tasks'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, title: 'Task B', description: '', priority: 'medium', tags: [] }),
+      });
+
+      const { data: taskA } = await createTaskA.json() as any;
+      const { data: taskB } = await createTaskB.json() as any;
+
+      const createViewRes = await fetch(api(`/api/projects/${projectId}/dependency-views`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Release Graph', description: 'Release ordering', dimension: 'release' }),
+      });
+      expect(createViewRes.status).toBe(200);
+      const createViewData = await createViewRes.json() as any;
+      const viewId = createViewData.data.id;
+
+      await fetch(api(`/api/projects/${projectId}/dependency-views/${viewId}/nodes`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: taskA.id }),
+      });
+      await fetch(api(`/api/projects/${projectId}/dependency-views/${viewId}/nodes`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: taskB.id }),
+      });
+
+      const addEdgeRes = await fetch(api(`/api/projects/${projectId}/dependency-views/${viewId}/edges`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromTaskId: taskA.id, toTaskId: taskB.id }),
+      });
+      expect(addEdgeRes.status).toBe(200);
+
+      const analyzeRes = await fetch(api(`/api/projects/${projectId}/dependency-views/${viewId}/analyze`));
+      expect(analyzeRes.status).toBe(200);
+      const analyzeData = await analyzeRes.json() as any;
+      expect(analyzeData.data.topologicalOrder).toEqual([taskA.id, taskB.id]);
+      expect(analyzeData.data.readyTaskIds).toEqual([taskA.id]);
+
+      const deleteViewRes = await fetch(api(`/api/projects/${projectId}/dependency-views/${viewId}`), {
+        method: 'DELETE',
+      });
+      expect(deleteViewRes.status).toBe(200);
+    });
+
+    it('should reject cyclic dependency edges', async () => {
+      const createTaskA = await fetch(api('/api/tasks'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, title: 'Task A', description: '', priority: 'medium', tags: [] }),
+      });
+      const createTaskB = await fetch(api('/api/tasks'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId, title: 'Task B', description: '', priority: 'medium', tags: [] }),
+      });
+
+      const { data: taskA } = await createTaskA.json() as any;
+      const { data: taskB } = await createTaskB.json() as any;
+
+      const createViewRes = await fetch(api(`/api/projects/${projectId}/dependency-views`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Cycle Guard', description: '' }),
+      });
+      const { data: view } = await createViewRes.json() as any;
+
+      await fetch(api(`/api/projects/${projectId}/dependency-views/${view.id}/nodes`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: taskA.id }),
+      });
+      await fetch(api(`/api/projects/${projectId}/dependency-views/${view.id}/nodes`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: taskB.id }),
+      });
+
+      await fetch(api(`/api/projects/${projectId}/dependency-views/${view.id}/edges`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromTaskId: taskA.id, toTaskId: taskB.id }),
+      });
+
+      const cycleRes = await fetch(api(`/api/projects/${projectId}/dependency-views/${view.id}/edges`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromTaskId: taskB.id, toTaskId: taskA.id }),
+      });
+
+      expect(cycleRes.status).toBe(400);
+      const cycleData = await cycleRes.json() as any;
+      expect(cycleData.error).toContain('cycle');
     });
   });
 

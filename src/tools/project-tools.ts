@@ -8,6 +8,7 @@ const ProjectStatusEnum = z.enum(['active', 'completed', 'archived']);
 function toProjectSummary(
   project: Project,
   taskCount: number,
+  dependencyViewCount: number,
   tags?: Array<{ id: string; name: string; color: string }>
 ): ProjectSummary {
   return {
@@ -17,6 +18,7 @@ function toProjectSummary(
     status: project.status,
     targetDate: project.targetDate,
     taskCount,
+    dependencyViewCount,
     ...(tags ? { tags } : {}),
   };
 }
@@ -65,7 +67,7 @@ export const createProjectTool = {
         success: true,
         data: input.verbose
           ? projectData
-          : toProjectSummary(projectData.project, 0),
+          : toProjectSummary(projectData.project, 0, 0),
       };
     } catch (error) {
       return {
@@ -102,7 +104,12 @@ export const listProjectsTool = {
             color: tag.color,
           }));
 
-          return toProjectSummary(projectSummary.project, projectSummary.taskCount, tags);
+          return toProjectSummary(
+            projectSummary.project,
+            projectSummary.taskCount,
+            projectData?.dependencyViews?.length ?? 0,
+            tags
+          );
         })
       );
 
@@ -196,7 +203,11 @@ export const updateProjectTool = {
         success: true,
         data: verbose
           ? projectData
-          : toProjectSummary(projectData.project, projectData.tasks.length),
+          : toProjectSummary(
+              projectData.project,
+              projectData.tasks.length,
+              projectData.dependencyViews.length
+            ),
       };
     } catch (error) {
       return {

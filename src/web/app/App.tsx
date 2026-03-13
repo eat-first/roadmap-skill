@@ -3,6 +3,7 @@ import { getItem, setItem, STORAGE_KEYS } from './utils/storage.js';
 import TagBadge from './components/TagBadge.js';
 import TagFilter from './components/TagFilter.js';
 import TagSelector from './components/TagSelector.js';
+import DependencyViewsPanel from './components/DependencyViewsPanel.js';
 import TagManagerModal from './components/modals/TagManagerModal.js';
 
 interface Project {
@@ -18,6 +19,15 @@ interface ProjectSummary {
   project: Project;
   taskCount: number;
   milestoneCount: number;
+  dependencyViewCount?: number;
+}
+
+interface GraphSummary {
+  id: string;
+  name: string;
+  description: string;
+  dimension: string | null;
+  revision: number;
 }
 
 interface Task {
@@ -43,6 +53,7 @@ interface Tag {
 type CardMode = 'compact' | 'detailed';
 type StatusFilter = 'all' | 'active' | 'completed';
 type TaskStatus = 'todo' | 'in-progress' | 'review' | 'done';
+type WorkspaceMode = 'kanban' | 'dependency';
 
 function normalizeStatus(status: string): TaskStatus {
   const normalized = status.replace('_', '-');
@@ -74,6 +85,9 @@ const App: React.FC = () => {
   const [tasks, setTasks] = useState<{ task: Task; project: Project }[]>([]);
   const [cardMode, setCardMode] = useState<CardMode>('compact');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('kanban');
+  const [graphViews, setGraphViews] = useState<GraphSummary[]>([]);
+  const [graphPickerTaskId, setGraphPickerTaskId] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
@@ -191,6 +205,22 @@ const App: React.FC = () => {
     }
   }, [selectedProject]);
 
+  useEffect(() => {
+    if (!selectedProject) {
+      setGraphViews([]);
+      setGraphPickerTaskId(null);
+      return;
+    }
+
+    fetch(`/api/projects/${selectedProject}/dependency-views`)
+      .then((res) => res.json())
+      .then((payload) => {
+        if (payload.success) {
+          setGraphViews(payload.data as GraphSummary[]);
+        }
+      });
+  }, [selectedProject]);
+
   const filteredTasks = tasks.filter(({ task }) => {
     if (statusFilter === 'completed') {
       if (normalizeStatus(task.status) !== 'done') return false;
@@ -222,6 +252,31 @@ const App: React.FC = () => {
         tags: (item.task.tags || []).filter(id => tagIds.has(id))
       }
     })));
+  };
+
+  const handleAddTaskToGraph = async (taskId: string, projectId: string, graphId: string): Promise<void> => {
+    try {
+      const response = await fetch(`/api/projects/${projectId}/dependency-views/${graphId}/nodes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to add task to graph');
+      }
+
+      setGraphPickerTaskId(null);
+      if (selectedProject === projectId) {
+        const viewsResponse = await fetch(`/api/projects/${projectId}/dependency-views`);
+        const viewsPayload = await viewsResponse.json();
+        if (viewsPayload.success) {
+          setGraphViews(viewsPayload.data as GraphSummary[]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to add task to graph:', error);
+    }
   };
 
   const handleEditTask = (task: Task) => {
@@ -560,7 +615,41 @@ const App: React.FC = () => {
           <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${priority.bgColor} ${priority.color} border border-current opacity-80`}>
             {priority.label}
           </span>
-          <div className={`flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all ${cardMode === 'compact' ? 'scale-90' : ''}`}>
+          <div className={`relative flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all ${cardMode === 'compact' ? 'scale-90' : ''}`}>
+            {selectedProject === project.id && graphViews.length > 0 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGraphPickerTaskId((current) => current === task.id ? null : task.id);
+                  }}
+                  className={`text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-all font-black ${cardMode === 'compact' ? 'px-2 py-1 text-[10px]' : 'px-2.5 py-1.5 text-[11px]'}`}
+                  title="Add to Graph"
+                >
+                  Graph
+                </button>
+                {graphPickerTaskId === task.id && (
+                  <div className="absolute right-0 top-9 z-20 w-52 rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
+                    <div className="px-2 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Add To Graph</div>
+                    <div className="mt-1 space-y-1">
+                      {graphViews.map((graph) => (
+                        <button
+                          key={graph.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleAddTaskToGraph(task.id, project.id, graph.id);
+                          }}
+                          className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-emerald-50"
+                        >
+                          <span className="truncate pr-2">{graph.name}</span>
+                          <span className="text-[10px] text-slate-400">r{graph.revision}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -635,6 +724,29 @@ const App: React.FC = () => {
           </h1>
         </div>
         <div className="flex items-center gap-4">
+          <div className="flex bg-slate-200/50 rounded-xl p-1">
+            <button
+              onClick={() => setWorkspaceMode('kanban')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                workspaceMode === 'kanban'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              Kanban
+            </button>
+            <button
+              onClick={() => setWorkspaceMode('dependency')}
+              disabled={!selectedProject}
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                workspaceMode === 'dependency'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              } disabled:cursor-not-allowed disabled:opacity-40`}
+            >
+              Graph
+            </button>
+          </div>
           <div className="flex bg-slate-200/50 rounded-xl p-1">
             <button
               onClick={() => setCardMode('compact')}
@@ -813,65 +925,82 @@ const App: React.FC = () => {
               </button>
             </div>
           )}
-          <div className="mb-4 text-xs font-bold text-slate-400">
-            {filteredTasks.length} {filteredTasks.length === 1 ? 'Task' : 'Tasks'}
-          </div>
+          {workspaceMode === 'kanban' ? (
+            <>
+              <div className="mb-4 text-xs font-bold text-slate-400">
+                {filteredTasks.length} {filteredTasks.length === 1 ? 'Task' : 'Tasks'}
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            {KANBAN_COLUMNS.map(column => {
-              const columnTasks = getTasksByStatus(column);
-              const statusConfig = STATUS_CONFIG[column];
-              const isDragOver = dragOverColumn === column;
-              return (
-                <div
-                  key={column}
-                  className={`rounded-2xl p-4 min-h-[500px] transition-all duration-300 flex flex-col ${
-                    isDragOver 
-                      ? 'bg-emerald-100/50 ring-2 ring-emerald-400 shadow-lg scale-[1.02]' 
-                      : 'bg-white/30 backdrop-blur-[2px] border border-white/50 shadow-sm'
-                  }`}
-                  onDragOver={(e) => handleDragOver(e, column)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, column)}
-                >
-                  <div className="flex items-center justify-between mb-6 px-1">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-6 rounded-full ${statusConfig.bgColor.replace('bg-', 'bg-')}`} style={{backgroundColor: statusConfig.color.includes('blue') ? '#3B82F6' : statusConfig.color.includes('amber') ? '#F59E0B' : statusConfig.color.includes('emerald') ? '#10B981' : '#64748B'}}></div>
-                      <h3 className="font-bold text-slate-800 tracking-tight">{statusConfig.label}</h3>
-                      <span className="text-[10px] font-bold bg-white/60 text-slate-500 px-2 py-0.5 rounded-full shadow-sm">
-                        {columnTasks.length}
-                      </span>
-                    </div>
-                    <button
-                        onClick={() => {
-                          setCreateTaskStatus(column);
-                          setTaskFormError('');
-                          setNewTaskForm({ title: '', description: '', priority: 'medium', dueDate: '', showDueDate: false, tags: [] });
-                          setIsCreateTaskModalOpen(true);
-                        }}
-                      className="w-8 h-8 flex items-center justify-center text-emerald-500 hover:text-emerald-600 hover:bg-white rounded-xl transition-all shadow-sm hover:shadow-md active:scale-90"
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                {KANBAN_COLUMNS.map(column => {
+                  const columnTasks = getTasksByStatus(column);
+                  const statusConfig = STATUS_CONFIG[column];
+                  const isDragOver = dragOverColumn === column;
+                  return (
+                    <div
+                      key={column}
+                      className={`rounded-2xl p-4 min-h-[500px] transition-all duration-300 flex flex-col ${
+                        isDragOver 
+                          ? 'bg-emerald-100/50 ring-2 ring-emerald-400 shadow-lg scale-[1.02]' 
+                          : 'bg-white/30 backdrop-blur-[2px] border border-white/50 shadow-sm'
+                      }`}
+                      onDragOver={(e) => handleDragOver(e, column)}
+                      onDragLeave={handleDragLeave}
+                      onDrop={(e) => handleDrop(e, column)}
                     >
-                      <span className="text-xl font-bold">+</span>
-                    </button>
-                  </div>
-
-
-
-                  <div className="space-y-2 transition-all duration-300">
-                    {columnTasks.map((taskItem, index) => (
-                      <div
-                        key={taskItem.task.id}
-                        className="animate-fadeIn"
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
-                        {renderTaskCard(taskItem)}
+                      <div className="flex items-center justify-between mb-6 px-1">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-6 rounded-full ${statusConfig.bgColor.replace('bg-', 'bg-')}`} style={{backgroundColor: statusConfig.color.includes('blue') ? '#3B82F6' : statusConfig.color.includes('amber') ? '#F59E0B' : statusConfig.color.includes('emerald') ? '#10B981' : '#64748B'}}></div>
+                          <h3 className="font-bold text-slate-800 tracking-tight">{statusConfig.label}</h3>
+                          <span className="text-[10px] font-bold bg-white/60 text-slate-500 px-2 py-0.5 rounded-full shadow-sm">
+                            {columnTasks.length}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setCreateTaskStatus(column);
+                            setTaskFormError('');
+                            setNewTaskForm({ title: '', description: '', priority: 'medium', dueDate: '', showDueDate: false, tags: [] });
+                            setIsCreateTaskModalOpen(true);
+                          }}
+                          className="w-8 h-8 flex items-center justify-center text-emerald-500 hover:text-emerald-600 hover:bg-white rounded-xl transition-all shadow-sm hover:shadow-md active:scale-90"
+                        >
+                          <span className="text-xl font-bold">+</span>
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+
+                      <div className="space-y-2 transition-all duration-300">
+                        {columnTasks.map((taskItem, index) => (
+                          <div
+                            key={taskItem.task.id}
+                            className="animate-fadeIn"
+                            style={{ animationDelay: `${index * 50}ms` }}
+                          >
+                            {renderTaskCard(taskItem)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <DependencyViewsPanel
+              projectId={selectedProject}
+              projectName={projects.find(project => project.project.id === selectedProject)?.project.name}
+              onGraphsChange={setGraphViews}
+              tasks={tasks
+                .filter(item => !selectedProject || item.project.id === selectedProject)
+                .map(item => ({
+                  id: item.task.id,
+                  title: item.task.title,
+                  status: normalizeStatus(item.task.status),
+                  priority: item.task.priority as 'low' | 'medium' | 'high' | 'critical',
+                  description: item.task.description,
+                }))}
+            />
+          )}
         </main>
       </div>
 

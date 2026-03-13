@@ -24,6 +24,20 @@ export {
 } from './tag-tools.js';
 
 export {
+  createDependencyViewTool,
+  listDependencyViewsTool,
+  getDependencyViewTool,
+  updateDependencyViewTool,
+  deleteDependencyViewTool,
+  addTaskToDependencyViewTool,
+  updateDependencyViewNodeTool,
+  removeTaskFromDependencyViewTool,
+  addDependencyViewEdgeTool,
+  removeDependencyViewEdgeTool,
+  analyzeDependencyViewTool,
+} from './dependency-view-tools.js';
+
+export {
   openWebInterfaceTool,
   closeWebInterfaceTool,
 } from './web-tools.js';

@@ -27,6 +27,16 @@ import {
   deleteTagTool,
   getTasksByTagTool,
 } from '../../src/tools/tag-tools.js';
+import {
+  addDependencyViewEdgeTool,
+  addTaskToDependencyViewTool,
+  analyzeDependencyViewTool,
+  createDependencyViewTool,
+  deleteDependencyViewTool,
+  listDependencyViewsTool,
+  removeDependencyViewEdgeTool,
+  removeTaskFromDependencyViewTool,
+} from '../../src/tools/dependency-view-tools.js';
 
 class TestableStorage {
   private storageDir: string;
@@ -94,10 +104,27 @@ describe('Tools', () => {
       milestones: [],
       tasks: [],
       tags: [],
+      dependencyViews: [],
     };
 
     await testStorage.createProjectData(projectData);
     return projectData;
+  }
+
+  async function createScopedTestTask(projectId: string, title: string): Promise<Task> {
+    const result = await createTaskTool.execute({
+      projectId,
+      title,
+      description: 'Task description',
+      priority: 'medium',
+      tags: [],
+    });
+
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+
+    return result.data as Task;
   }
 
   describe('Project Tools', () => {
@@ -827,6 +854,173 @@ describe('Tools', () => {
         expect(result.success).toBe(false);
         expect(result.error).toContain('not found');
       });
+    });
+  });
+
+  describe('Dependency View Tools', () => {
+    it('should create and list dependency views for a project', async () => {
+      const project = await createTestProject('Dependency Project');
+
+      const createResult = await createDependencyViewTool.execute({
+        projectId: project.project.id,
+        name: 'Release Order',
+        description: 'Tracks release sequencing',
+        dimension: 'release',
+      });
+
+      expect(createResult.success).toBe(true);
+
+      const listResult = await listDependencyViewsTool.execute({
+        projectId: project.project.id,
+        verbose: true,
+      });
+
+      expect(listResult.success).toBe(true);
+      if (!listResult.success) {
+        throw new Error(listResult.error);
+      }
+
+      expect(listResult.data).toHaveLength(1);
+      expect(listResult.data[0].name).toBe('Release Order');
+      expect(listResult.data[0].dimension).toBe('release');
+    });
+
+    it('should add tasks, connect them, analyze graph, and delete edges and nodes', async () => {
+      const project = await createTestProject('Dependency Project');
+      const taskA = await createScopedTestTask(project.project.id, 'Design API');
+      const taskB = await createScopedTestTask(project.project.id, 'Ship UI');
+
+      const createViewResult = await createDependencyViewTool.execute({
+        projectId: project.project.id,
+        name: 'Delivery Plan',
+        description: '',
+        verbose: true,
+      });
+
+      expect(createViewResult.success).toBe(true);
+      if (!createViewResult.success) {
+        throw new Error(createViewResult.error);
+      }
+
+      const viewId = createViewResult.data.id;
+
+      await addTaskToDependencyViewTool.execute({
+        projectId: project.project.id,
+        viewId,
+        taskId: taskA.id,
+      });
+      await addTaskToDependencyViewTool.execute({
+        projectId: project.project.id,
+        viewId,
+        taskId: taskB.id,
+      });
+
+      const addEdgeResult = await addDependencyViewEdgeTool.execute({
+        projectId: project.project.id,
+        viewId,
+        fromTaskId: taskA.id,
+        toTaskId: taskB.id,
+        verbose: true,
+      });
+
+      expect(addEdgeResult.success).toBe(true);
+      if (!addEdgeResult.success) {
+        throw new Error(addEdgeResult.error);
+      }
+
+      expect(addEdgeResult.data.edges).toHaveLength(1);
+      const edgeId = addEdgeResult.data.edges[0].id;
+
+      const analysisResult = await analyzeDependencyViewTool.execute({
+        projectId: project.project.id,
+        viewId,
+      });
+
+      expect(analysisResult.success).toBe(true);
+      if (!analysisResult.success) {
+        throw new Error(analysisResult.error);
+      }
+
+      expect(analysisResult.data.topologicalOrder).toEqual([taskA.id, taskB.id]);
+      expect(analysisResult.data.readyTaskIds).toEqual([taskA.id]);
+      expect(analysisResult.data.blockedTaskIds).toEqual([taskB.id]);
+
+      const removeEdgeResult = await removeDependencyViewEdgeTool.execute({
+        projectId: project.project.id,
+        viewId,
+        edgeId,
+        verbose: true,
+      });
+
+      expect(removeEdgeResult.success).toBe(true);
+      if (!removeEdgeResult.success) {
+        throw new Error(removeEdgeResult.error);
+      }
+
+      expect(removeEdgeResult.data.edges).toHaveLength(0);
+
+      const removeNodeResult = await removeTaskFromDependencyViewTool.execute({
+        projectId: project.project.id,
+        viewId,
+        taskId: taskA.id,
+        verbose: true,
+      });
+
+      expect(removeNodeResult.success).toBe(true);
+      if (!removeNodeResult.success) {
+        throw new Error(removeNodeResult.error);
+      }
+
+      expect(removeNodeResult.data.nodes).toHaveLength(1);
+
+      const deleteViewResult = await deleteDependencyViewTool.execute({
+        projectId: project.project.id,
+        viewId,
+      });
+
+      expect(deleteViewResult.success).toBe(true);
+    });
+
+    it('should reject cyclic edges in dependency views', async () => {
+      const project = await createTestProject('Dependency Project');
+      const taskA = await createScopedTestTask(project.project.id, 'Task A');
+      const taskB = await createScopedTestTask(project.project.id, 'Task B');
+
+      const createViewResult = await createDependencyViewTool.execute({
+        projectId: project.project.id,
+        name: 'Cycle Guard',
+        description: '',
+        verbose: true,
+      });
+
+      expect(createViewResult.success).toBe(true);
+      if (!createViewResult.success) {
+        throw new Error(createViewResult.error);
+      }
+
+      const viewId = createViewResult.data.id;
+      await addTaskToDependencyViewTool.execute({ projectId: project.project.id, viewId, taskId: taskA.id });
+      await addTaskToDependencyViewTool.execute({ projectId: project.project.id, viewId, taskId: taskB.id });
+      await addDependencyViewEdgeTool.execute({
+        projectId: project.project.id,
+        viewId,
+        fromTaskId: taskA.id,
+        toTaskId: taskB.id,
+      });
+
+      const cycleResult = await addDependencyViewEdgeTool.execute({
+        projectId: project.project.id,
+        viewId,
+        fromTaskId: taskB.id,
+        toTaskId: taskA.id,
+      });
+
+      expect(cycleResult.success).toBe(false);
+      if (cycleResult.success) {
+        throw new Error('Expected cycle validation to fail');
+      }
+
+      expect(cycleResult.error).toContain('cycle');
     });
   });
 });

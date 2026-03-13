@@ -35,6 +35,35 @@ export interface Task {
   completedAt: string | null; // ISO 8601 datetime string or null
 }
 
+export interface DependencyViewNode {
+  taskId: string;
+  x: number;
+  y: number;
+  collapsed: boolean;
+  note: string | null;
+}
+
+export interface DependencyViewEdge {
+  id: string;
+  fromTaskId: string;
+  toTaskId: string;
+  kind: 'hard';
+  createdAt: string; // ISO 8601 datetime string
+}
+
+export interface DependencyView {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  dimension: string | null;
+  createdAt: string; // ISO 8601 datetime string
+  updatedAt: string; // ISO 8601 datetime string
+  revision: number;
+  nodes: DependencyViewNode[];
+  edges: DependencyViewEdge[];
+}
+
 export interface Tag {
   id: string;
   name: string;
@@ -60,6 +89,7 @@ export interface ProjectData {
   milestones: Milestone[];
   tasks: Task[];
   tags: Tag[];
+  dependencyViews: DependencyView[];
 }
 
 // Filter types for search operations
@@ -113,6 +143,51 @@ export interface UpdateTaskInput {
   assignee?: string | null;
 }
 
+export interface CreateDependencyViewInput {
+  projectId: string;
+  name: string;
+  description: string;
+  dimension?: string | null;
+}
+
+export interface UpdateDependencyViewInput {
+  name?: string;
+  description?: string;
+  dimension?: string | null;
+}
+
+export interface AddDependencyViewNodeInput {
+  taskId: string;
+  x?: number;
+  y?: number;
+  collapsed?: boolean;
+  note?: string | null;
+}
+
+export interface UpdateDependencyViewNodeInput {
+  x?: number;
+  y?: number;
+  collapsed?: boolean;
+  note?: string | null;
+}
+
+export interface AddDependencyViewEdgeInput {
+  fromTaskId: string;
+  toTaskId: string;
+}
+
+export interface DependencyViewAnalysis {
+  viewId: string;
+  revision: number;
+  topologicalOrder: string[];
+  layers: string[][];
+  readyTaskIds: string[];
+  blockedTaskIds: string[];
+  roots: string[];
+  leaves: string[];
+  isolatedTaskIds: string[];
+}
+
 export interface CreateTagInput {
   projectId: string;
   name: string;
@@ -146,5 +221,6 @@ export interface ProjectSummary {
   status: ProjectStatus;
   targetDate: string;
   taskCount: number;
+  dependencyViewCount?: number;
   tags?: Array<{ id: string; name: string; color: string }>;
 }

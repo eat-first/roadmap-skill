@@ -66,6 +66,7 @@ export class ProjectStorage {
       milestones: [],
       tasks: [],
       tags: [],
+      dependencyViews: [],
     };
 
     const filePath = this.getFilePath(projectId);
@@ -82,7 +83,11 @@ export class ProjectStorage {
   async readProject(projectId: string): Promise<ProjectData | null> {
     try {
       const filePath = this.getFilePath(projectId);
-      return await readJsonFile<ProjectData>(filePath);
+      const projectData = await readJsonFile<ProjectData>(filePath);
+      return {
+        ...projectData,
+        dependencyViews: projectData.dependencyViews ?? [],
+      };
     } catch (error) {
       if (error instanceof Error && error.message.includes('ENOENT')) {
         return null;

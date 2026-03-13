@@ -4,7 +4,14 @@
  */
 
 import type { ProjectStorage } from '../storage/index.js';
-import type { Task, Tag, TaskStatus, TaskPriority } from '../models/index.js';
+import type {
+  Task,
+  Tag,
+  TaskStatus,
+  TaskPriority,
+  DependencyView,
+  DependencyViewAnalysis,
+} from '../models/index.js';
 
 // ============================================================================
 // Result Types
@@ -61,6 +68,38 @@ export interface BatchUpdateResult {
   updatedTasks: Task[];
   updatedCount: number;
   notFoundIds?: string[];
+}
+
+export interface CreateDependencyViewData {
+  name: string;
+  description: string;
+  dimension?: string | null;
+}
+
+export interface UpdateDependencyViewData {
+  name?: string;
+  description?: string;
+  dimension?: string | null;
+}
+
+export interface AddDependencyViewNodeData {
+  taskId: string;
+  x?: number;
+  y?: number;
+  collapsed?: boolean;
+  note?: string | null;
+}
+
+export interface UpdateDependencyViewNodeData {
+  x?: number;
+  y?: number;
+  collapsed?: boolean;
+  note?: string | null;
+}
+
+export interface AddDependencyViewEdgeData {
+  fromTaskId: string;
+  toTaskId: string;
 }
 
 // ============================================================================
@@ -129,6 +168,37 @@ export interface ITaskService {
     taskIds: string[],
     data: BatchUpdateTaskData
   ): Promise<ServiceResult<BatchUpdateResult>>;
+}
+
+export interface IDependencyViewService {
+  create(projectId: string, data: CreateDependencyViewData): Promise<ServiceResult<DependencyView>>;
+  list(projectId: string): Promise<ServiceResult<DependencyView[]>>;
+  get(projectId: string, viewId: string): Promise<ServiceResult<DependencyView>>;
+  update(
+    projectId: string,
+    viewId: string,
+    data: UpdateDependencyViewData
+  ): Promise<ServiceResult<DependencyView>>;
+  delete(projectId: string, viewId: string): Promise<ServiceResult<void>>;
+  addNode(
+    projectId: string,
+    viewId: string,
+    data: AddDependencyViewNodeData
+  ): Promise<ServiceResult<DependencyView>>;
+  updateNode(
+    projectId: string,
+    viewId: string,
+    taskId: string,
+    data: UpdateDependencyViewNodeData
+  ): Promise<ServiceResult<DependencyView>>;
+  removeNode(projectId: string, viewId: string, taskId: string): Promise<ServiceResult<DependencyView>>;
+  addEdge(
+    projectId: string,
+    viewId: string,
+    data: AddDependencyViewEdgeData
+  ): Promise<ServiceResult<DependencyView>>;
+  removeEdge(projectId: string, viewId: string, edgeId: string): Promise<ServiceResult<DependencyView>>;
+  analyze(projectId: string, viewId: string): Promise<ServiceResult<DependencyViewAnalysis>>;
 }
 
 /**

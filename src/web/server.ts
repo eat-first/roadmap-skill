@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
 import type { Server } from 'http';
 import { storage } from '../storage/index.js';
-import { TaskService, TagService } from '../services/index.js';
+import { DependencyViewService, TaskService, TagService } from '../services/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,6 +48,7 @@ function resolveAppPath(): string {
 }
 
 const tagService = new TagService(storage);
+const dependencyViewService = new DependencyViewService(storage);
 
 export function createServer(port: number = 7860): Promise<Server> {
   return new Promise((resolve, reject) => {
@@ -72,6 +73,165 @@ export function createServer(port: number = 7860): Promise<Server> {
           return;
         }
         res.json(project);
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.get('/api/projects/:projectId/dependency-views', async (req, res) => {
+      try {
+        const result = await dependencyViewService.list(req.params.projectId);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.post('/api/projects/:projectId/dependency-views', async (req, res) => {
+      try {
+        const result = await dependencyViewService.create(req.params.projectId, req.body);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.get('/api/projects/:projectId/dependency-views/:viewId', async (req, res) => {
+      try {
+        const result = await dependencyViewService.get(req.params.projectId, req.params.viewId);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.put('/api/projects/:projectId/dependency-views/:viewId', async (req, res) => {
+      try {
+        const result = await dependencyViewService.update(req.params.projectId, req.params.viewId, req.body);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.delete('/api/projects/:projectId/dependency-views/:viewId', async (req, res) => {
+      try {
+        const result = await dependencyViewService.delete(req.params.projectId, req.params.viewId);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.post('/api/projects/:projectId/dependency-views/:viewId/nodes', async (req, res) => {
+      try {
+        const result = await dependencyViewService.addNode(req.params.projectId, req.params.viewId, req.body);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.put('/api/projects/:projectId/dependency-views/:viewId/nodes/:taskId', async (req, res) => {
+      try {
+        const result = await dependencyViewService.updateNode(
+          req.params.projectId,
+          req.params.viewId,
+          req.params.taskId,
+          req.body
+        );
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.delete('/api/projects/:projectId/dependency-views/:viewId/nodes/:taskId', async (req, res) => {
+      try {
+        const result = await dependencyViewService.removeNode(req.params.projectId, req.params.viewId, req.params.taskId);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.post('/api/projects/:projectId/dependency-views/:viewId/edges', async (req, res) => {
+      try {
+        const result = await dependencyViewService.addEdge(req.params.projectId, req.params.viewId, req.body);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.delete('/api/projects/:projectId/dependency-views/:viewId/edges/:edgeId', async (req, res) => {
+      try {
+        const result = await dependencyViewService.removeEdge(req.params.projectId, req.params.viewId, req.params.edgeId);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
+      } catch (error) {
+        res.status(500).json({ error: (error as Error).message });
+      }
+    });
+
+    app.get('/api/projects/:projectId/dependency-views/:viewId/analyze', async (req, res) => {
+      try {
+        const result = await dependencyViewService.analyze(req.params.projectId, req.params.viewId);
+        if (!result.success) {
+          const statusCode = result.code === 'NOT_FOUND' ? 404 : 400;
+          res.status(statusCode).json({ error: result.error });
+          return;
+        }
+        res.json({ success: true, data: result.data });
       } catch (error) {
         res.status(500).json({ error: (error as Error).message });
       }
