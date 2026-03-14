@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-03-14
+
+### Added
+- **Graph View**: Added a full dependency graph workspace powered by React Flow for sequencing work, visualizing blockers, and reviewing execution order
+- **Dependency Editing**: Added atomic dependency edge updates, inline dependency actions, and richer graph-side editing flows
+- **Graph Export**: Added image export support for dependency views in the web workspace
+- **Workspace Metadata**: Added repository and version metadata for the web workspace header and API responses
+- **Agent Tooling**: Added agent-friendly dependency view read models, mutation change metadata, and dedicated dependency view tool coverage
+- **Planning Skills**: Added the initial roadmap skill pack for roadmap routing, task flow, planning views, and web visualization guidance
+
+### Changed
+- **Dependency Planning UX**: Improved dependency view layout, controls, inline actions, ready/done presentation, and detailed task rendering
+- **Workspace State**: Improved dependency view selection, persisted workspace state, graph layout stability, and general interaction polish
+- **Graph Layout Engine**: Bundled `elkjs` support for graph layout improvements in the web client
+- **Task Creation Flow**: Added an active-only status filter to the Add Tasks modal so large graphs are easier to extend
+- **Prompt Behavior**: Normalized optional argument handling in project prompts to reduce branching friction for Agents
+- **Documentation**: Expanded README messaging around Graph View, refreshed screenshots, and added Chinese README updates for the new planning experience
+
+### Fixed
+- **Mutation Responses**: Stabilized dependency view mutation responses and moved dependency change metadata generation into the service layer
+- **Graph Persistence**: Fixed dependency view persistence and layout stability across workspace sessions
+- **Metadata Detection**: Improved fallback behavior for app metadata resolution in the web server
+- **Repository Cleanup**: Removed temporary root screenshots from the repository
+
 ## [0.2.11] - 2026-03-09
 
 ### Fixed
