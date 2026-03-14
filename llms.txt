@@ -1,0 +1,25 @@
+# Roadmap Skill
+
+Roadmap Skill is a local-first roadmap workspace for humans and AI agents. It provides an MCP server for roadmap operations, a web workspace with Kanban and dependency graph views, and installable skills for roadmap workflows.
+
+## Main Docs
+
+- [README.md](https://raw.githubusercontent.com/shiquda/roadmap-skill/main/README.md): Overview, quick start, supported clients, use cases, and core features
+- [README.zh.md](https://raw.githubusercontent.com/shiquda/roadmap-skill/main/README.zh.md): Chinese overview and setup guide
+- [docs/architecture.md](https://raw.githubusercontent.com/shiquda/roadmap-skill/main/docs/architecture.md): System architecture, storage model, public surfaces, and component responsibilities
+- [docs/tool-interface-standard.md](https://raw.githubusercontent.com/shiquda/roadmap-skill/main/docs/tool-interface-standard.md): Public MCP tool invocation rules, input conventions, and output contracts
+- [AGENTS.md](https://raw.githubusercontent.com/shiquda/roadmap-skill/main/AGENTS.md): Development conventions, commands, testing, and release workflow
+- [CHANGELOG.md](https://raw.githubusercontent.com/shiquda/roadmap-skill/main/CHANGELOG.md): Version history and recent changes
+
+## Important Facts
+
+- local-first JSON storage
+- MCP server for AI agents
+- Kanban and Graph View workspace
+- supports Claude Code, Codex, Cursor, OpenCode, VS Code, and other MCP-compatible clients
+- open source under the MIT License
+
+## Canonical Links
+
+- GitHub: https://github.com/shiquda/roadmap-skill
+- npm: https://www.npmjs.com/package/roadmap-skill

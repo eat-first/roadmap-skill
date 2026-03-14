@@ -28,6 +28,8 @@
   <a href="https://insiders.vscode.dev/redirect/mcp/install?name=roadmap&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22roadmap-skill%22%5D%7D&quality=insiders"><img src="https://img.shields.io/badge/VS_Code_Insiders-Install%20MCP%20Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white" alt="Install in VS Code Insiders"></a>
 </p>
 
+AI-readable docs: [`llms.txt`](./llms.txt) · [`llms-full.txt`](./llms-full.txt) · [`Architecture`](./docs/architecture.md) · [`Tool Interface Standard`](./docs/tool-interface-standard.md)
+
 ---
 
 ## What Makes It Different

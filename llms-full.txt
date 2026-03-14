@@ -1,0 +1,386 @@
+# Roadmap Skill
+
+Roadmap Skill is a local-first roadmap workspace for humans and AI agents.
+
+It combines:
+
+- an MCP server for roadmap operations
+- a local web workspace with Kanban and Graph View
+- a skill pack for roadmap-oriented agent workflows
+
+The project is designed for shared planning context: agents can mutate roadmap state in chat, and humans can review the same state visually in the web workspace.
+
+## What It Is
+
+Roadmap Skill is an MCP-native planning tool for:
+
+- creating and updating projects
+- creating, listing, and updating tasks
+- tagging and filtering work
+- building dependency views for sequencing
+- analyzing ready, blocked, root, leaf, and isolated work
+- opening a local visual workspace for inspection and editing
+
+It is intended for AI-assisted planning workflows where chat-based task management and visual review need to stay in sync.
+
+## What It Is Not
+
+Roadmap Skill is not:
+
+- a hosted multi-user SaaS project management platform
+- a cloud sync product
+- a remote database-backed service
+- a generic public API with stable internals outside the MCP surface
+
+The product is local-first and stores data on the user's machine.
+
+## Core User Value
+
+- Shared context: humans and agents work on the same roadmap state
+- Agent-native: AI clients can operate through the MCP server
+- Visual planning: Kanban for status, Graph View for dependencies and execution order
+- Local-first: no account, cloud dependency, or vendor lock-in is required
+
+## Main Docs
+
+- README.md: primary overview, quick start, supported clients, use cases, features
+- README.zh.md: Chinese overview and setup guide
+- llms.txt: short AI-readable index
+- docs/architecture.md: high-level system architecture and component boundaries
+- docs/tool-interface-standard.md: public MCP tool rules and output conventions
+- AGENTS.md: development conventions, testing, and release workflow
+- CHANGELOG.md: product evolution and release history
+
+Canonical URLs:
+
+- GitHub repository: https://github.com/shiquda/roadmap-skill
+- npm package: https://www.npmjs.com/package/roadmap-skill
+
+## Supported Clients
+
+Roadmap Skill is intended for MCP-compatible assistants and coding tools, including:
+
+- Claude Code
+- Codex
+- Cursor
+- OpenCode
+- VS Code
+- other MCP-compatible clients
+
+Quick-start installation examples live in `README.md`.
+
+## Architecture Summary
+
+Roadmap Skill is organized around three public surfaces:
+
+- MCP server
+- local web workspace
+- skill pack in the repository
+
+High-level flow:
+
+1. An MCP client calls a public tool.
+2. The server validates input and dispatches to a tool implementation.
+3. Services and storage read or mutate local JSON-backed project data.
+4. The web workspace reads the same local state through the local web server.
+5. Skills and prompts help agents compose higher-level workflows.
+
+Important boundary:
+
+- Public contract: registered MCP tools, resources, prompts, and the local web workspace entry point
+- Internal implementation: storage internals, service details, unregistered utilities, and other private modules
+
+Agents should ground on public surfaces, not on incidental implementation details.
+
+## Main Components
+
+### MCP Server
+
+- Entry point: `src/server.ts`
+- Tool exports: `src/tools/index.ts`
+- Resources: `src/resources/`
+- Prompts: `src/prompts/`
+
+The MCP server:
+
+- registers the public tool list
+- exposes resources and prompts
+- converts tool schemas into MCP-compatible JSON schema
+- serializes tool results as JSON text in MCP responses
+
+### Tool Layer
+
+Public tool implementations live under `src/tools/`.
+
+Current public tool categories:
+
+- project tools
+- task tools
+- tag tools
+- dependency view tools
+- web workspace tools
+
+Important note:
+
+- `src/tools/template-tools.ts` exists in the codebase but is not currently registered in `src/server.ts`, so it should not be treated as part of the current public MCP tool surface.
+
+### Service Layer
+
+- `src/services/`
+
+Services handle domain logic for tasks, tags, and dependency views, including agent-friendly read models for dependency views.
+
+### Storage Layer
+
+- `src/storage/index.ts`
+- `src/utils/path-helpers.ts`
+
+Project data is stored as local JSON files.
+
+Default storage locations:
+
+- Windows: `%USERPROFILE%\\.roadmap-skill`
+- macOS: `~/.roadmap-skill/`
+- Linux: `~/.roadmap-skill/`
+
+### Web Workspace
+
+- web server: `src/web/server.ts`
+- app entry: `src/web/app/App.tsx`
+
+The web workspace is a local browser interface for the same roadmap state used by the MCP server.
+
+Main visual modes:
+
+- Kanban view for task status
+- Graph View for dependency planning and execution order
+
+`open_web_interface` starts the local web server and opens the workspace in a browser.
+
+### Skill Pack
+
+- repository location: `skills/`
+
+Skills help agent frameworks use the roadmap MCP surface more effectively.
+
+Important packaging note:
+
+- the skill files live in the repository
+- they are not part of the published npm package
+
+## Public Data Model
+
+Core entities live in `src/models/index.ts`.
+
+Main entities:
+
+- `Project`
+- `Task`
+- `Tag`
+- `DependencyView`
+
+Relationship summary:
+
+- a project owns tasks, tags, milestones, and dependency views
+- a task belongs to one project
+- task tags store tag IDs
+- a dependency view references tasks by task ID
+- dependency edges connect two task IDs inside a dependency view
+
+## Public MCP Tool Surface
+
+The current public tool surface is the set of tools registered in `src/server.ts`.
+
+### Project Tools
+
+- `create_project`
+- `list_projects`
+- `get_project`
+- `update_project`
+- `delete_project`
+
+### Task Tools
+
+- `create_task`
+- `list_tasks`
+- `get_task`
+- `update_task`
+- `delete_task`
+- `batch_update_tasks`
+
+### Tag Tools
+
+- `create_tag`
+- `list_tags`
+- `update_tag`
+- `delete_tag`
+- `get_tasks_by_tag`
+
+### Dependency View Tools
+
+- `create_dependency_view`
+- `list_dependency_views`
+- `get_dependency_view`
+- `update_dependency_view`
+- `delete_dependency_view`
+- `add_task_to_dependency_view`
+- `update_dependency_view_node`
+- `batch_update_dependency_view_nodes`
+- `remove_task_from_dependency_view`
+- `add_dependency_view_edge`
+- `update_dependency_view_edge`
+- `remove_dependency_view_edge`
+- `analyze_dependency_view`
+
+### Web Workspace Tools
+
+- `open_web_interface`
+- `close_web_interface`
+
+## Tool Invocation Standard
+
+The MCP server uses the standard `list_tools` and `call_tool` flow.
+
+At runtime:
+
+1. `list_tools` returns each tool name, description, and input schema.
+2. `call_tool` takes a tool name and an argument object.
+3. The server executes the tool and returns text content containing serialized JSON.
+
+### Common Input Rules
+
+- IDs are strings
+- date-only values use `YYYY-MM-DD`
+- nullable values use `null`
+- optional values may be omitted
+- many data tools support `verbose: true`
+
+### Common Result Envelope
+
+Most data-oriented tools return one of these shapes:
+
+```json
+{ "success": true, "data": {} }
+```
+
+```json
+{ "success": false, "error": "Human-readable message" }
+```
+
+Some failures also include a stable `code` such as `NOT_FOUND`.
+
+### MCP Transport Shape
+
+The server wraps tool results in a text response:
+
+```json
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"success\": true, \"data\": ...\n}"
+    }
+  ]
+}
+```
+
+If a tool throws, the server responds with `isError: true` and a text error message.
+
+### Summary vs Verbose
+
+Many tools default to summary mode to reduce context size.
+
+Use summary mode when:
+
+- listing projects or tasks
+- deciding what to inspect next
+- minimizing token usage
+
+Use `verbose: true` when:
+
+- full object details are required
+- raw dependency view node or edge data is needed
+- storage-level details are being inspected
+
+### Exception: Web Tools
+
+`open_web_interface` and `close_web_interface` do not use the `{ success, data }` envelope on success.
+
+They return operational objects such as:
+
+```json
+{ "message": "Web interface started successfully and opened in browser", "url": "http://localhost:7860" }
+```
+
+## Important Domain Conventions
+
+Project types:
+
+- `roadmap`
+- `skill-tree`
+- `kanban`
+
+Project status:
+
+- `active`
+- `completed`
+- `archived`
+
+Task status:
+
+- `todo`
+- `in-progress`
+- `review`
+- `done`
+
+Task priority:
+
+- `low`
+- `medium`
+- `high`
+- `critical`
+
+Batch tag operations:
+
+- `add`
+- `remove`
+- `replace`
+
+Other important rules:
+
+- task tags are referenced by tag ID, not tag name
+- `list_tasks` excludes completed tasks by default unless `includeCompleted: true` is set
+- dependency view tools default to agent-friendly summaries rather than raw layout data
+- `get_dependency_view` returns hydrated task snapshots by default
+
+## Best-Fit Scenarios
+
+Roadmap Skill is a good fit for:
+
+- solo developers
+- AI-heavy planning workflows
+- local-first task and roadmap tracking
+- dependency-aware execution planning
+- workflows that switch between chat and visual inspection
+
+## Agent Guidance
+
+When grounding on this repository, prefer this order:
+
+1. `llms.txt`
+2. `llms-full.txt`
+3. `README.md`
+4. `docs/architecture.md`
+5. `docs/tool-interface-standard.md`
+6. `AGENTS.md`
+
+When invoking the MCP surface:
+
+- discover entities with list tools first
+- reuse returned IDs instead of inventing them
+- prefer compact responses until raw detail is necessary
+- treat only `src/server.ts` registered tools as public MCP tools
+
+## License
+
+Roadmap Skill is open source under the MIT License.
