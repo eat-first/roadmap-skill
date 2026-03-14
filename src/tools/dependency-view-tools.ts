@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { DependencyView, Task, TaskSummary } from '../models/index.js';
+import type { DependencyViewMutationChanges, DependencyViewMutationResult } from '../services/types.js';
 import { DependencyViewService } from '../services/index.js';
 import { storage } from '../storage/index.js';
 
@@ -24,6 +26,82 @@ function toDependencyViewSummary(view: {
     revision: view.revision,
     nodeCount: view.nodes.length,
     edgeCount: view.edges.length,
+  };
+}
+
+function toTaskSummary(task: Task): TaskSummary {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    dueDate: task.dueDate,
+    assignee: task.assignee,
+    tags: [...task.tags],
+  };
+}
+
+function toAgentDependencyView(
+  view: DependencyView,
+  tasks: Task[]
+): {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  dimension: string | null;
+  revision: number;
+  nodeCount: number;
+  edgeCount: number;
+  nodes: Array<{
+    taskId: string;
+    task: TaskSummary;
+  }>;
+  edges: Array<{
+    id: string;
+    fromTaskId: string;
+    toTaskId: string;
+  }>;
+} {
+  const tasksById = new Map(tasks.map((task) => [task.id, task]));
+
+  return {
+    ...toDependencyViewSummary(view),
+    nodes: view.nodes.flatMap((node) => {
+      const task = tasksById.get(node.taskId);
+      if (!task) {
+        return [];
+      }
+
+      return [{
+        taskId: node.taskId,
+        task: toTaskSummary(task),
+      }];
+    }),
+    edges: view.edges.map((edge) => ({
+      id: edge.id,
+      fromTaskId: edge.fromTaskId,
+      toTaskId: edge.toTaskId,
+    })),
+  };
+}
+
+function toDependencyViewMutationResult(
+  mutation: DependencyViewMutationResult
+): {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  dimension: string | null;
+  revision: number;
+  nodeCount: number;
+  edgeCount: number;
+  changes: DependencyViewMutationChanges;
+} {
+  return {
+    ...toDependencyViewSummary(mutation.view),
+    changes: mutation.changes,
   };
 }
 
@@ -60,27 +138,51 @@ export const createDependencyViewTool = {
 
 export const listDependencyViewsTool = {
   name: 'list_dependency_views',
-  description: 'List dependency planning views in a project. Returns summaries by default; set verbose=true for full data.',
+  description: 'List dependency planning views in a project. Returns summaries by default; set includeTasks=true for Agent-friendly task snapshots or verbose=true for raw node and edge data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
+    includeTasks: z.boolean().optional(),
     verbose: z.boolean().optional(),
   }),
-  async execute(input: { projectId: string; verbose?: boolean }) {
+  async execute(input: { projectId: string; includeTasks?: boolean; verbose?: boolean }) {
     const result = await dependencyViewService.list(input.projectId);
     if (!result.success) {
       return result;
     }
 
+    if (input.verbose) {
+      return {
+        success: true,
+        data: result.data,
+      };
+    }
+
+    if (input.includeTasks) {
+      const projectData = await storage.readProject(input.projectId);
+      if (!projectData) {
+        return {
+          success: false,
+          error: `Project with ID '${input.projectId}' not found`,
+          code: 'NOT_FOUND' as const,
+        };
+      }
+
+      return {
+        success: true,
+        data: result.data.map((view) => toAgentDependencyView(view, projectData.tasks)),
+      };
+    }
+
     return {
       success: true,
-      data: input.verbose ? result.data : result.data.map(toDependencyViewSummary),
+      data: result.data.map(toDependencyViewSummary),
     };
   },
 };
 
 export const getDependencyViewTool = {
   name: 'get_dependency_view',
-  description: 'Get a dependency planning view by project ID and view ID',
+  description: 'Get a dependency planning view by project ID and view ID. Returns Agent-friendly task snapshots by default; set verbose=true for raw node and edge data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
     viewId: z.string().min(1, 'View ID is required'),
@@ -92,9 +194,25 @@ export const getDependencyViewTool = {
       return result;
     }
 
+    if (input.verbose) {
+      return {
+        success: true,
+        data: result.data,
+      };
+    }
+
+    const projectData = await storage.readProject(input.projectId);
+    if (!projectData) {
+      return {
+        success: false,
+        error: `Project with ID '${input.projectId}' not found`,
+        code: 'NOT_FOUND' as const,
+      };
+    }
+
     return {
       success: true,
-      data: input.verbose ? result.data : toDependencyViewSummary(result.data),
+      data: toAgentDependencyView(result.data, projectData.tasks),
     };
   },
 };
@@ -153,7 +271,7 @@ export const deleteDependencyViewTool = {
 
 export const addTaskToDependencyViewTool = {
   name: 'add_task_to_dependency_view',
-  description: 'Add an existing task into a dependency planning view. Returns summary by default; set verbose=true for full data.',
+  description: 'Add an existing task into a dependency planning view. Returns summary plus changed ids by default; set verbose=true for full data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
     viewId: z.string().min(1, 'View ID is required'),
@@ -182,14 +300,14 @@ export const addTaskToDependencyViewTool = {
 
     return {
       success: true,
-      data: verbose ? result.data : toDependencyViewSummary(result.data),
+      data: verbose ? result.data.view : toDependencyViewMutationResult(result.data),
     };
   },
 };
 
 export const updateDependencyViewNodeTool = {
   name: 'update_dependency_view_node',
-  description: 'Update a task node layout or note inside a dependency planning view. Returns summary by default; set verbose=true for full data.',
+  description: 'Update a task node layout or note inside a dependency planning view. Returns summary plus changed ids by default; set verbose=true for full data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
     viewId: z.string().min(1, 'View ID is required'),
@@ -218,14 +336,14 @@ export const updateDependencyViewNodeTool = {
 
     return {
       success: true,
-      data: verbose ? result.data : toDependencyViewSummary(result.data),
+      data: verbose ? result.data.view : toDependencyViewMutationResult(result.data),
     };
   },
 };
 
 export const batchUpdateDependencyViewNodesTool = {
   name: 'batch_update_dependency_view_nodes',
-  description: 'Update multiple task node layouts or notes inside a dependency planning view. Returns summary by default; set verbose=true for full data.',
+  description: 'Update multiple task node layouts or notes inside a dependency planning view. Returns summary plus changed ids by default; set verbose=true for full data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
     viewId: z.string().min(1, 'View ID is required'),
@@ -258,14 +376,14 @@ export const batchUpdateDependencyViewNodesTool = {
 
     return {
       success: true,
-      data: verbose ? result.data : toDependencyViewSummary(result.data),
+      data: verbose ? result.data.view : toDependencyViewMutationResult(result.data),
     };
   },
 };
 
 export const removeTaskFromDependencyViewTool = {
   name: 'remove_task_from_dependency_view',
-  description: 'Remove a task node from a dependency planning view. Connected edges are removed too. Returns summary by default; set verbose=true for full data.',
+  description: 'Remove a task node from a dependency planning view. Connected edges are removed too. Returns summary plus changed ids by default; set verbose=true for full data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
     viewId: z.string().min(1, 'View ID is required'),
@@ -280,14 +398,14 @@ export const removeTaskFromDependencyViewTool = {
 
     return {
       success: true,
-      data: input.verbose ? result.data : toDependencyViewSummary(result.data),
+      data: input.verbose ? result.data.view : toDependencyViewMutationResult(result.data),
     };
   },
 };
 
 export const addDependencyViewEdgeTool = {
   name: 'add_dependency_view_edge',
-  description: 'Create a dependency edge between two tasks already present in a dependency planning view. Returns summary by default; set verbose=true for full data.',
+  description: 'Create a dependency edge between two tasks already present in a dependency planning view. Returns summary plus changed ids by default; set verbose=true for full data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
     viewId: z.string().min(1, 'View ID is required'),
@@ -310,14 +428,14 @@ export const addDependencyViewEdgeTool = {
 
     return {
       success: true,
-      data: verbose ? result.data : toDependencyViewSummary(result.data),
+      data: verbose ? result.data.view : toDependencyViewMutationResult(result.data),
     };
   },
 };
 
 export const removeDependencyViewEdgeTool = {
   name: 'remove_dependency_view_edge',
-  description: 'Remove a dependency edge from a dependency planning view. Returns summary by default; set verbose=true for full data.',
+  description: 'Remove a dependency edge from a dependency planning view. Returns summary plus changed ids by default; set verbose=true for full data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
     viewId: z.string().min(1, 'View ID is required'),
@@ -332,14 +450,14 @@ export const removeDependencyViewEdgeTool = {
 
     return {
       success: true,
-      data: input.verbose ? result.data : toDependencyViewSummary(result.data),
+      data: input.verbose ? result.data.view : toDependencyViewMutationResult(result.data),
     };
   },
 };
 
 export const updateDependencyViewEdgeTool = {
   name: 'update_dependency_view_edge',
-  description: 'Update the direction of a dependency edge inside a dependency planning view. Returns summary by default; set verbose=true for full data.',
+  description: 'Update the direction of a dependency edge inside a dependency planning view. Returns summary plus changed ids by default; set verbose=true for full data.',
   inputSchema: z.object({
     projectId: z.string().min(1, 'Project ID is required'),
     viewId: z.string().min(1, 'View ID is required'),
@@ -364,7 +482,7 @@ export const updateDependencyViewEdgeTool = {
 
     return {
       success: true,
-      data: verbose ? result.data : toDependencyViewSummary(result.data),
+      data: verbose ? result.data.view : toDependencyViewMutationResult(result.data),
     };
   },
 };
