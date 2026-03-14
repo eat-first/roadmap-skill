@@ -74,15 +74,17 @@ export const projectPrompts: Prompt[] = [
   },
 ];
 
+function formatOptionalArgument(value?: string): string {
+  return value && value.trim() ? value.trim() : '[not provided]';
+}
+
 /**
  * Intelligently recommend next tasks
  * Analyze all tasks and recommend optimal execution order based on priority, due dates, and dependencies
  */
 export function getRecommendNextTasksPrompt(projectId?: string, limit?: string): GetPromptResult {
-  const projectHint = projectId
-    ? `User specified project: ${projectId}. Use this project if it exists, or inform user if not found.`
-    : 'User did not specify a project. Based on the current working directory and conversation context, try to identify the most relevant project. If a clear match exists, focus on that project; otherwise, analyze all active projects';
-  const taskLimit = limit ? parseInt(limit, 10) : 3;
+  const requestedProjectId = formatOptionalArgument(projectId);
+  const requestedLimit = formatOptionalArgument(limit);
 
   return {
     description: 'Intelligent Task Recommendation Assistant',
@@ -91,7 +93,17 @@ export function getRecommendNextTasksPrompt(projectId?: string, limit?: string):
         role: 'user',
         content: {
           type: 'text',
-          text: `${projectHint}, please recommend the ${taskLimit} tasks I should prioritize next.
+          text: `Please recommend the next tasks I should prioritize.
+
+## Provided Arguments
+- projectId: ${requestedProjectId}
+- limit: ${requestedLimit}
+
+## Argument Handling Rules
+- If projectId is provided, use that project if it exists; if it does not exist, tell the user clearly.
+- If projectId is not provided, infer the most relevant project from the current working directory and conversation context; if no clear match exists, analyze all active projects.
+- If limit is provided and valid, return that many recommendations.
+- If limit is not provided or invalid, default to 3 recommendations.
 
 ## Recommendation Logic (sorted by priority):
 
@@ -117,7 +129,7 @@ export function getRecommendNextTasksPrompt(projectId?: string, limit?: string):
 2. **Filter high-priority tasks**: critical and high
 3. **Check due dates**: Identify tasks due soon or overdue
 4. **Analyze blocking relationships**: Identify tasks blocking others
-5. **Generate recommendation list**: Provide ${taskLimit} tasks to prioritize with reasons
+5. **Generate recommendation list**: Provide the requested number of tasks to prioritize with reasons
 
 ## Output Format:
 
@@ -156,9 +168,7 @@ Keep task status synchronized with actual progress!`,
  * Automatically adjust priorities based on due dates, project progress, and task dependencies
  */
 export function getAutoPrioritizePrompt(projectId?: string): GetPromptResult {
-  const projectHint = projectId
-    ? `User specified project: ${projectId}. Use this project if it exists, or inform user if not found.`
-    : 'User did not specify a project. Based on the current working directory and conversation context, try to identify the most relevant project. If a clear match exists, focus on that project; otherwise, analyze all active projects';
+  const requestedProjectId = formatOptionalArgument(projectId);
 
   return {
     description: 'Intelligent Priority Optimization Assistant',
@@ -167,7 +177,14 @@ export function getAutoPrioritizePrompt(projectId?: string): GetPromptResult {
         role: 'user',
         content: {
           type: 'text',
-          text: `${projectHint}, please automatically analyze and adjust priorities.
+          text: `Please automatically analyze and adjust priorities.
+
+## Provided Arguments
+- projectId: ${requestedProjectId}
+
+## Argument Handling Rules
+- If projectId is provided, use that project if it exists; if it does not exist, tell the user clearly.
+- If projectId is not provided, infer the most relevant project from the current working directory and conversation context; if no clear match exists, analyze all active projects.
 
 ## Priority Adjustment Rules:
 
@@ -318,9 +335,7 @@ Please fetch task info and immediately use update_task to apply the enhanced det
  * Auto-categorize, suggest priorities, recommend projects
  */
 export function getQuickCapturePrompt(idea: string, projectId?: string): GetPromptResult {
-  const projectContext = projectId
-    ? `User specified project: ${projectId}. Use this project if it exists, or inform user if not found.`
-    : 'User did not specify a project. Based on the current working directory and conversation context, try to identify the most relevant project. If a clear match exists, use that project; otherwise, analyze all active projects and select the best match';
+  const requestedProjectId = formatOptionalArgument(projectId);
 
   return {
     description: 'Quick Capture Assistant',
@@ -331,7 +346,12 @@ export function getQuickCapturePrompt(idea: string, projectId?: string): GetProm
           type: 'text',
           text: `I want to quickly capture an idea/task: "${idea}"
 
-${projectContext}
+## Provided Arguments
+- projectId: ${requestedProjectId}
+
+## Argument Handling Rules
+- If projectId is provided, use that project if it exists; if it does not exist, tell the user clearly.
+- If projectId is not provided, infer the most relevant project from the current working directory and conversation context; if no clear match exists, analyze all active projects and choose the best fit.
 
 ## [Non-intrusive task] Pause your current work briefly to complete this quick capture, then let the user know it's done and resume what you were doing.
 
@@ -400,7 +420,7 @@ Analyze the idea, select the best matching project, and immediately execute crea
  * Launch the web visualization interface
  */
 export function getOpenWebUIPrompt(port?: string): GetPromptResult {
-  const portNum = port ? parseInt(port, 10) : 7860;
+  const requestedPort = formatOptionalArgument(port);
   return {
     description: 'Open Web Visualization Interface',
     messages: [
@@ -410,7 +430,14 @@ export function getOpenWebUIPrompt(port?: string): GetPromptResult {
           type: 'text',
           text: `**[Non-intrusive task]** Pause your current work briefly to complete this quick action, then let the user know it's done and resume what you were doing.
 
-Call the open_web_interface tool${port ? ` with port ${portNum}` : ''} to launch the roadmap-skill web visualization interface.`,
+## Provided Arguments
+- port: ${requestedPort}
+
+## Argument Handling Rules
+- If port is provided and valid, call the open_web_interface tool with that port.
+- If port is not provided or invalid, call the open_web_interface tool with its default behavior.
+
+Launch the roadmap-skill web visualization interface now.`,
         },
       },
     ],
