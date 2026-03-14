@@ -11,6 +11,8 @@ import type {
   AddDependencyViewNodeData,
   BatchUpdateDependencyViewNodesData,
   CreateDependencyViewData,
+  DependencyViewMutationChanges,
+  DependencyViewMutationResult,
   ServiceResult,
   UpdateDependencyViewEdgeData,
   UpdateDependencyViewData,
@@ -57,6 +59,19 @@ function applyNodeUpdate(node: DependencyViewNode, data: UpdateDependencyViewNod
   if (data.note !== undefined) {
     node.note = data.note;
   }
+}
+
+function createMutationChanges(
+  partial?: Partial<DependencyViewMutationChanges>
+): DependencyViewMutationChanges {
+  return {
+    addedNodeIds: partial?.addedNodeIds ?? [],
+    updatedNodeIds: partial?.updatedNodeIds ?? [],
+    removedNodeIds: partial?.removedNodeIds ?? [],
+    addedEdgeIds: partial?.addedEdgeIds ?? [],
+    updatedEdgeIds: partial?.updatedEdgeIds ?? [],
+    removedEdgeIds: partial?.removedEdgeIds ?? [],
+  };
 }
 
 function buildAdjacency(view: DependencyView): Map<string, string[]> {
@@ -404,9 +419,9 @@ export class DependencyViewService {
     projectId: string,
     viewId: string,
     data: AddDependencyViewNodeData
-  ): Promise<ServiceResult<DependencyView>> {
+  ): Promise<ServiceResult<DependencyViewMutationResult>> {
     try {
-      const result = await this.storage.mutateProject<ServiceResult<DependencyView>>(projectId, async (projectData) => {
+      const result = await this.storage.mutateProject<ServiceResult<DependencyViewMutationResult>>(projectId, async (projectData) => {
         const view = findView(projectData, viewId);
         if (!view) {
           return {
@@ -457,7 +472,13 @@ export class DependencyViewService {
         projectData.project.updatedAt = now;
 
         return {
-          result: { success: true, data: cloneView(view) },
+          result: {
+            success: true,
+            data: {
+              view: cloneView(view),
+              changes: createMutationChanges({ addedNodeIds: [data.taskId] }),
+            },
+          },
           shouldSave: true,
         };
       });
@@ -485,9 +506,9 @@ export class DependencyViewService {
     viewId: string,
     taskId: string,
     data: UpdateDependencyViewNodeData
-  ): Promise<ServiceResult<DependencyView>> {
+  ): Promise<ServiceResult<DependencyViewMutationResult>> {
     try {
-      const result = await this.storage.mutateProject<ServiceResult<DependencyView>>(projectId, async (projectData) => {
+      const result = await this.storage.mutateProject<ServiceResult<DependencyViewMutationResult>>(projectId, async (projectData) => {
         if (Object.keys(data).length === 0) {
           return {
             result: {
@@ -531,7 +552,13 @@ export class DependencyViewService {
         projectData.project.updatedAt = now;
 
         return {
-          result: { success: true, data: cloneView(view) },
+          result: {
+            success: true,
+            data: {
+              view: cloneView(view),
+              changes: createMutationChanges({ updatedNodeIds: [taskId] }),
+            },
+          },
           shouldSave: true,
         };
       });
@@ -558,9 +585,9 @@ export class DependencyViewService {
     projectId: string,
     viewId: string,
     data: BatchUpdateDependencyViewNodesData
-  ): Promise<ServiceResult<DependencyView>> {
+  ): Promise<ServiceResult<DependencyViewMutationResult>> {
     try {
-      const result = await this.storage.mutateProject<ServiceResult<DependencyView>>(projectId, async (projectData) => {
+      const result = await this.storage.mutateProject<ServiceResult<DependencyViewMutationResult>>(projectId, async (projectData) => {
         if (data.nodes.length === 0) {
           return {
             result: {
@@ -606,7 +633,15 @@ export class DependencyViewService {
         projectData.project.updatedAt = now;
 
         return {
-          result: { success: true, data: cloneView(view) },
+          result: {
+            success: true,
+            data: {
+              view: cloneView(view),
+              changes: createMutationChanges({
+                updatedNodeIds: [...new Set(data.nodes.map((node) => node.taskId))],
+              }),
+            },
+          },
           shouldSave: true,
         };
       });
@@ -629,9 +664,9 @@ export class DependencyViewService {
     }
   }
 
-  async removeNode(projectId: string, viewId: string, taskId: string): Promise<ServiceResult<DependencyView>> {
+  async removeNode(projectId: string, viewId: string, taskId: string): Promise<ServiceResult<DependencyViewMutationResult>> {
     try {
-      const result = await this.storage.mutateProject<ServiceResult<DependencyView>>(projectId, async (projectData) => {
+      const result = await this.storage.mutateProject<ServiceResult<DependencyViewMutationResult>>(projectId, async (projectData) => {
         const view = findView(projectData, viewId);
         if (!view) {
           return {
@@ -657,6 +692,9 @@ export class DependencyViewService {
         }
 
         view.nodes.splice(nodeIndex, 1);
+        const removedEdgeIds = view.edges
+          .filter((edge) => edge.fromTaskId === taskId || edge.toTaskId === taskId)
+          .map((edge) => edge.id);
         view.edges = view.edges.filter((edge) => edge.fromTaskId !== taskId && edge.toTaskId !== taskId);
 
         const now = new Date().toISOString();
@@ -665,7 +703,16 @@ export class DependencyViewService {
         projectData.project.updatedAt = now;
 
         return {
-          result: { success: true, data: cloneView(view) },
+          result: {
+            success: true,
+            data: {
+              view: cloneView(view),
+              changes: createMutationChanges({
+                removedNodeIds: [taskId],
+                removedEdgeIds,
+              }),
+            },
+          },
           shouldSave: true,
         };
       });
@@ -692,9 +739,9 @@ export class DependencyViewService {
     projectId: string,
     viewId: string,
     data: AddDependencyViewEdgeData
-  ): Promise<ServiceResult<DependencyView>> {
+  ): Promise<ServiceResult<DependencyViewMutationResult>> {
     try {
-      const result = await this.storage.mutateProject<ServiceResult<DependencyView>>(projectId, async (projectData) => {
+      const result = await this.storage.mutateProject<ServiceResult<DependencyViewMutationResult>>(projectId, async (projectData) => {
         const view = findView(projectData, viewId);
         if (!view) {
           return {
@@ -771,7 +818,13 @@ export class DependencyViewService {
         projectData.project.updatedAt = now;
 
         return {
-          result: { success: true, data: cloneView(view) },
+          result: {
+            success: true,
+            data: {
+              view: cloneView(view),
+              changes: createMutationChanges({ addedEdgeIds: [edge.id] }),
+            },
+          },
           shouldSave: true,
         };
       });
@@ -799,9 +852,9 @@ export class DependencyViewService {
     viewId: string,
     edgeId: string,
     data: UpdateDependencyViewEdgeData
-  ): Promise<ServiceResult<DependencyView>> {
+  ): Promise<ServiceResult<DependencyViewMutationResult>> {
     try {
-      const result = await this.storage.mutateProject<ServiceResult<DependencyView>>(projectId, async (projectData) => {
+      const result = await this.storage.mutateProject<ServiceResult<DependencyViewMutationResult>>(projectId, async (projectData) => {
         if (Object.keys(data).length === 0) {
           return {
             result: {
@@ -903,7 +956,13 @@ export class DependencyViewService {
         projectData.project.updatedAt = now;
 
         return {
-          result: { success: true, data: cloneView(view) },
+          result: {
+            success: true,
+            data: {
+              view: cloneView(view),
+              changes: createMutationChanges({ updatedEdgeIds: [edgeId] }),
+            },
+          },
           shouldSave: true,
         };
       });
@@ -926,9 +985,9 @@ export class DependencyViewService {
     }
   }
 
-  async removeEdge(projectId: string, viewId: string, edgeId: string): Promise<ServiceResult<DependencyView>> {
+  async removeEdge(projectId: string, viewId: string, edgeId: string): Promise<ServiceResult<DependencyViewMutationResult>> {
     try {
-      const result = await this.storage.mutateProject<ServiceResult<DependencyView>>(projectId, async (projectData) => {
+      const result = await this.storage.mutateProject<ServiceResult<DependencyViewMutationResult>>(projectId, async (projectData) => {
         const view = findView(projectData, viewId);
         if (!view) {
           return {
@@ -960,7 +1019,13 @@ export class DependencyViewService {
         projectData.project.updatedAt = now;
 
         return {
-          result: { success: true, data: cloneView(view) },
+          result: {
+            success: true,
+            data: {
+              view: cloneView(view),
+              changes: createMutationChanges({ removedEdgeIds: [edgeId] }),
+            },
+          },
           shouldSave: true,
         };
       });

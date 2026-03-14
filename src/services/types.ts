@@ -117,6 +117,20 @@ export interface UpdateDependencyViewEdgeData {
   toTaskId?: string;
 }
 
+export interface DependencyViewMutationChanges {
+  addedNodeIds: string[];
+  updatedNodeIds: string[];
+  removedNodeIds: string[];
+  addedEdgeIds: string[];
+  updatedEdgeIds: string[];
+  removedEdgeIds: string[];
+}
+
+export interface DependencyViewMutationResult {
+  view: DependencyView;
+  changes: DependencyViewMutationChanges;
+}
+
 // ============================================================================
 // Tag Service Types
 // ============================================================================
@@ -199,31 +213,31 @@ export interface IDependencyViewService {
     projectId: string,
     viewId: string,
     data: AddDependencyViewNodeData
-  ): Promise<ServiceResult<DependencyView>>;
+  ): Promise<ServiceResult<DependencyViewMutationResult>>;
   updateNode(
     projectId: string,
     viewId: string,
     taskId: string,
     data: UpdateDependencyViewNodeData
-  ): Promise<ServiceResult<DependencyView>>;
+  ): Promise<ServiceResult<DependencyViewMutationResult>>;
   batchUpdateNodes(
     projectId: string,
     viewId: string,
     data: BatchUpdateDependencyViewNodesData
-  ): Promise<ServiceResult<DependencyView>>;
-  removeNode(projectId: string, viewId: string, taskId: string): Promise<ServiceResult<DependencyView>>;
+  ): Promise<ServiceResult<DependencyViewMutationResult>>;
+  removeNode(projectId: string, viewId: string, taskId: string): Promise<ServiceResult<DependencyViewMutationResult>>;
   addEdge(
     projectId: string,
     viewId: string,
     data: AddDependencyViewEdgeData
-  ): Promise<ServiceResult<DependencyView>>;
+  ): Promise<ServiceResult<DependencyViewMutationResult>>;
   updateEdge(
     projectId: string,
     viewId: string,
     edgeId: string,
     data: UpdateDependencyViewEdgeData
-  ): Promise<ServiceResult<DependencyView>>;
-  removeEdge(projectId: string, viewId: string, edgeId: string): Promise<ServiceResult<DependencyView>>;
+  ): Promise<ServiceResult<DependencyViewMutationResult>>;
+  removeEdge(projectId: string, viewId: string, edgeId: string): Promise<ServiceResult<DependencyViewMutationResult>>;
   analyze(projectId: string, viewId: string): Promise<ServiceResult<DependencyViewAnalysis>>;
 }
 
