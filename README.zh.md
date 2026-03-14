@@ -1,7 +1,11 @@
 # Roadmap Skill
 
 <p align="center">
-  <img src="./imgs/roadmap-skill-web.png" alt="Roadmap Skill Kanban Board" width="900">
+  <img src="./imgs/roadmap-skill-web.png" alt="Roadmap Skill 本地工作区，包含看板与 Graph 视图" width="900">
+</p>
+
+<p align="center">
+  <sub>一个本地规划工作区：看板负责状态，Graph View 负责执行顺序。</sub>
 </p>
 
 <p align="center">
@@ -32,9 +36,36 @@
 
 **Agent 原生** — 以 MCP 服务器形式运行。AI 可以在对话中直接创建、更新、查询任务。
 
-**轻量看板** — 你想看的时候打开 `localhost:7860`。懒得开浏览器？直接让 Agent `/open-web-ui` 也行。
+**可视化工作区** — 你想看的时候打开 `localhost:7860`。看板适合看状态，Graph View 适合理顺序和阻塞关系。懒得开浏览器？直接让 Agent `/open-web-ui` 也行。
 
 **本地优先** — 数据存在你的机器上。无需账号，无云同步，不依赖任何第三方服务。
+
+---
+
+## v0.3.0 重点更新：Graph View
+
+`v0.3.0` 最重要的新能力之一，就是 Graph View。
+
+看板适合追踪任务状态，Graph View 更适合理解执行顺序。
+
+它会让你和 Agent 更容易回答这些问题：
+
+- 哪些任务必须先做？
+- 哪些任务现在已经 ready？
+- 哪些任务还被未完成工作阻塞着？
+- 哪条依赖关系需要新增、反转或删除？
+
+<p align="center">
+  <img src="./imgs/roadmap-graph.png" alt="Roadmap Skill Graph View 依赖规划截图" width="900">
+</p>
+
+<p align="center">
+  <sub>Graph View 会把 roadmap 任务变成依赖图，帮助你快速看清顺序、阻塞项和 ready work。</sub>
+</p>
+
+Graph View 不再把 roadmap 当作一份平铺的任务清单，而是把任务转成可视化依赖图，展示节点关系、ready/done 状态、详细任务卡片，以及导出能力。对于需要先排依赖、再排状态的规划场景，这个视角会更清楚。
+
+如果你把 Roadmap Skill 当作一个 MCP 工作区来使用，这也是最能体现人机协作感的视图之一：Agent 可以在对话里构建和调整依赖图，你可以马上在 Web UI 里看到结构结果。
 
 ---
 
@@ -334,6 +365,10 @@ VibeCoding时，突然想到一个新idea/有新Bug：
 | 功能 | 说明 |
 |------|------|
 | **看板视图** | 四列布局：待办、进行中、审核中、已完成 |
+| **Graph 视图** | 用依赖图梳理任务顺序、阻塞关系和执行路径 |
+| **Ready / Blocked 提示** | 快速看出哪些任务可以立刻开始，哪些任务仍被前置工作阻塞 |
+| **依赖编辑** | 直接在规划图中新增、反转和删除任务依赖 |
+| **图像导出** | 将依赖图导出为图片，方便分享、复盘和发布规划 |
 | **拖拽操作** | 拖拽任务即可更新状态，所见即所得 |
 | **快速创建** | 点击任意列的 "+" 按钮，瞬间添加新任务 |
 | **双重视图** | 紧凑模式概览全局，详细模式查看完整信息 |
