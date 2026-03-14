@@ -280,6 +280,28 @@ The AI will immediately create the project and tasks, saving them to local stora
 
 ---
 
+## Agent Skills
+
+This repository includes installable skills under `skills/`, distributed through the git repository rather than the published npm package.
+
+Available skills:
+
+- `skills/roadmap/` - lightweight background and routing for roadmap-skill
+- `skills/roadmap-task-flow/` - capture, enrich, tag, and prioritize roadmap tasks
+- `skills/roadmap-planning-views/` - build focused planning graphs from task subsets
+- `skills/roadmap-web-visualization/` - open and use the local roadmap web workspace
+
+Recommended installation pattern for skill-aware tools:
+
+```bash
+# install from the git repository when the installer supports repo sources
+npx skills add shiquda/roadmap-skill
+```
+
+These skills are still in beta. If you run into issues or have suggestions, feedback is very welcome.
+
+---
+
 ## Who Is This For?
 
 Solo developers, AI power users, and vibe coders who want their Agent to be a real collaborator — not just a code generator.
@@ -308,7 +330,7 @@ Use `/auto-prioritize` to let your Agent analyze the current project state and r
 
 Or use `/suggest-tasks` — your Agent recommends the next actions based on current progress and priorities.
 
-No tab switching. No copy-pasting. Just ask.
+No tab switching. No copy-pasting. Just ask
 ---
 
 ## Core Features
