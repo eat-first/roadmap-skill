@@ -638,5 +638,43 @@ describe('Web Server API', () => {
       const data = await res.json() as any;
       expect(data.success).toBe(true);
     });
+
+    it('POST /api/backup should reject invalid project ids', async () => {
+      const res = await fetch(api('/api/backup'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          projects: [
+            {
+              version: 1,
+              project: {
+                id: '../escape',
+                name: 'Unsafe Import',
+                description: '',
+                projectType: 'kanban',
+                status: 'active',
+                startDate: '2026-01-01',
+                targetDate: '2026-12-31',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
+              milestones: [],
+              tasks: [],
+              tags: [],
+              dependencyViews: [],
+            },
+          ],
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.success).toBe(false);
+      expect(data.imported).toBe(0);
+      expect(data.errors).toBe(1);
+      expect(data.errorDetails[0]).toContain("Invalid project ID '../escape'");
+    });
   });
 });

@@ -15,6 +15,8 @@ type ProjectMutationResult<T> = {
   shouldSave: boolean;
 };
 
+const INVALID_PROJECT_ID_SEGMENTS = ['..', '/', '\\', ':', '\0'];
+
 /**
  * Storage class for managing roadmap-skill projects
  * Projects are stored as individual JSON files in ~/.roadmap-skill/projects/
@@ -75,13 +77,31 @@ export class ProjectStorage {
     await ensureDir(this.storageDir);
   }
 
+  private resolveProjectFilePath(projectId: string): string {
+    for (const invalidSegment of INVALID_PROJECT_ID_SEGMENTS) {
+      if (projectId.includes(invalidSegment)) {
+        throw new Error(`Invalid project ID '${projectId}'`);
+      }
+    }
+
+    const storageRoot = path.resolve(this.storageDir);
+    const resolvedPath = path.resolve(storageRoot, `${projectId}.json`);
+    const relativePath = path.relative(storageRoot, resolvedPath);
+
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      throw new Error(`Invalid project ID '${projectId}'`);
+    }
+
+    return resolvedPath;
+  }
+
   /**
    * Get the file path for a project
    * @param projectId - The project ID
    * @returns Full path to the project JSON file
    */
   getFilePath(projectId: string): string {
-    return path.join(this.storageDir, `${projectId}.json`);
+    return this.resolveProjectFilePath(projectId);
   }
 
   /**
@@ -356,8 +376,9 @@ export class ProjectStorage {
           continue;
         }
 
-        const filePath = this.getFilePath(projectData.project.id);
-        await this.runProjectMutation(projectData.project.id, async () => {
+        const importedProjectId = projectData.project.id;
+        const filePath = this.getFilePath(importedProjectId);
+        await this.runProjectMutation(importedProjectId, async () => {
           await writeJsonFile(filePath, projectData);
         });
         imported++;

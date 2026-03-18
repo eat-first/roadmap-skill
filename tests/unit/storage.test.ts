@@ -10,6 +10,7 @@ import type {
   UpdateProjectInput,
   TaskSearchFilters,
 } from '../../src/models/index.js';
+import { ProjectStorage } from '../../src/storage/index.js';
 import { readJsonFile, writeJsonFile, ensureDir } from '../../src/utils/file-helpers.js';
 
 class TestableProjectStorage {
@@ -51,6 +52,7 @@ class TestableProjectStorage {
       milestones: [],
       tasks: [],
       tags: [],
+      dependencyViews: [],
     };
 
     const filePath = this.getFilePath(projectId);
@@ -941,6 +943,72 @@ describe('ProjectStorage', () => {
 
       expect(results.length).toBe(1);
       expect(results[0].task.title).toBe('Task 1');
+    });
+  });
+
+  describe('security boundaries', () => {
+    let secureStorage: ProjectStorage;
+
+    beforeEach(() => {
+      secureStorage = new ProjectStorage();
+      Object.defineProperty(secureStorage, 'storageDir', {
+        value: tempDir,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it('should reject traversal project IDs when reading', async () => {
+      await expect(secureStorage.readProject('../escape')).rejects.toThrow("Invalid project ID '../escape'");
+      await expect(secureStorage.readProject('..\\escape')).rejects.toThrow("Invalid project ID '..\\escape'");
+      await expect(secureStorage.readProject('/tmp/escape')).rejects.toThrow("Invalid project ID '/tmp/escape'");
+      await expect(secureStorage.readProject('C:\\escape')).rejects.toThrow("Invalid project ID 'C:\\escape'");
+    });
+
+    it('should reject traversal project IDs when updating or deleting', async () => {
+      await expect(
+        secureStorage.updateProject('../escape', { name: 'Unsafe' })
+      ).rejects.toThrow("Invalid project ID '../escape'");
+
+      await expect(secureStorage.deleteProject('..\\escape')).rejects.toThrow(
+        "Invalid project ID '..\\escape'"
+      );
+    });
+
+    it('should reject imported projects with invalid IDs and avoid writing files', async () => {
+      const outsidePath = join(tempDir, '..', 'escape.json');
+      const backupProject: ProjectData = {
+        version: 1,
+        project: {
+          id: '../escape',
+          name: 'Unsafe Import',
+          description: '',
+          projectType: 'roadmap',
+          status: 'active',
+          startDate: '2026-01-01',
+          targetDate: '2026-12-31',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        milestones: [],
+        tasks: [],
+        tags: [],
+        dependencyViews: [],
+      };
+
+      const result = await secureStorage.importAllData({
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        projects: [backupProject],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.imported).toBe(0);
+      expect(result.errors).toBe(1);
+      expect(result.errorDetails[0]).toContain("Invalid project ID '../escape'");
+
+      const fs = await import('fs/promises');
+      await expect(fs.access(outsidePath)).rejects.toThrow();
     });
   });
 });
